@@ -1,0 +1,74 @@
+# Environment files & secrets
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+!*.env.example
+
+# Python & Virtual Environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Database & local data
+*.sqlite3
+db.sqlite3
+*.db
+
+# Node & Frontend dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+
+# Django Static & Media
+staticfiles/
+media/
+
+# Logs & Temporary runtime files
+*.log
+landing_err.log
+landing_run.log
+routes_dev.log
+routes_err.log
+vite_err.log
+vite_err2.log
+vite_run.log
+vite_run2.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
