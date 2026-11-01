@@ -414,3 +414,51 @@ class StudentProfileUpdateSerializer(serializers.ModelSerializer):
 
         return instance
 
+
+class ChangePasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False)
+    current_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        error_messages={'blank': 'Current password is required.'}
+    )
+    new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        error_messages={'blank': 'New password is required.'}
+    )
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        error_messages={'blank': 'Please confirm your new password.'}
+    )
+
+    def validate(self, attrs):
+        current_password = attrs.get('current_password')
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('confirm_password')
+
+        if new_password != confirm_password:
+            raise serializers.ValidationError({'confirm_password': 'New passwords do not match.'})
+
+        if current_password == new_password:
+            raise serializers.ValidationError({'new_password': 'New password must be different from current password.'})
+
+        errors = []
+        if len(new_password) < 8:
+            errors.append("Password must be at least 8 characters long.")
+        if not re.search(r'[a-z]', new_password):
+            errors.append("Password must contain at least one lowercase letter (a-z).")
+        if not re.search(r'[A-Z]', new_password):
+            errors.append("Password must contain at least one uppercase letter (A-Z).")
+        if not re.search(r'[0-9]', new_password):
+            errors.append("Password must contain at least one number (0-9).")
+        if not re.search(r'[^A-Za-z0-9]', new_password):
+            errors.append("Password must contain at least one special character (!@#$).")
+
+        if errors:
+            raise serializers.ValidationError({'new_password': errors})
+
+        return attrs
+
+

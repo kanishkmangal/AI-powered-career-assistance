@@ -7,7 +7,7 @@ from django.urls import path, include
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from apps.accounts.views import RegisterView, LoginView, MeView, StudentProfileView
+from apps.accounts.views import RegisterView, LoginView, MeView, StudentProfileView, ChangePasswordView
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/auth/me/', MeView.as_view(), name='auth-me'),
     path('api/auth/profile/', StudentProfileView.as_view(), name='auth-profile'),
+    path('api/auth/change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
     # App modules
     path('api/accounts/', include('apps.accounts.urls')),
     path('api/academics/', include('apps.academics.urls')),

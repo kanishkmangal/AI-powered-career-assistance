@@ -1,60 +1,221 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getStudentProfile, updateStudentProfile, changePassword } from '../../services/api';
 
 export default function SettingPage() {
   const [activeTab, setActiveTab] = useState('account');
   const [toastMsg, setToastMsg] = useState(null);
+  const [toastType, setToastType] = useState('success'); // 'success' | 'error'
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  const storedUser = (() => {
+  const getStoredUser = () => {
     try {
       return JSON.parse(localStorage.getItem('edumitra_user')) || {};
     } catch {
       return {};
     }
-  })();
+  };
 
-  const initialFullName =
-    storedUser.fullName ||
-    storedUser.full_name ||
-    storedUser.name ||
-    (storedUser.firstName ? `${storedUser.firstName} ${storedUser.lastName || ''}`.trim() : '') ||
-    'Student';
+  const storedUser = getStoredUser();
 
-  // Form State
-  const [fullName, setFullName] = useState(initialFullName);
-  const [secondaryEmail, setSecondaryEmail] = useState(storedUser.personalEmail || storedUser.secondaryEmail || 'student.personal@gmail.com');
-  const [academicProgram, setAcademicProgram] = useState(storedUser.degree ? `${storedUser.degree} • ${storedUser.academicStanding || 'Year 3'}` : 'B.Tech Computer Science & Engineering • Semester 6');
+  // ─── Account State (populated from DB) ───
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [rollNumber, setRollNumber] = useState('');
+  const [institution, setInstitution] = useState('');
+  const [secondaryEmail, setSecondaryEmail] = useState('');
+  const [degree, setDegree] = useState('');
+  const [branch, setBranch] = useState('');
+  const [currentYear, setCurrentYear] = useState(1);
+  const [currentSemester, setCurrentSemester] = useState(1);
+  const [academicStanding, setAcademicStanding] = useState('');
 
-  // Security State
+  // ─── Security State (always empty on load) ───
   const [showCurrentPass, setShowCurrentPass] = useState(false);
-  const [currentPass, setCurrentPass] = useState('currentPasswordExample#2024');
-  const [newPass, setNewPass] = useState('AaravNITK#2024@Secure');
-  const [confirmPass, setConfirmPass] = useState('AaravNITK#2024@Secure');
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+  const [passwordError, setPasswordError] = useState('');
 
-  // Notification Toggles
+  // ─── Notification Toggles ───
   const [dailyDigest, setDailyDigest] = useState(true);
   const [bottleneckAlerts, setBottleneckAlerts] = useState(true);
   const [examCountdown, setExamCountdown] = useState(true);
   const [careerAlerts, setCareerAlerts] = useState(true);
   const [streakPush, setStreakPush] = useState(false);
 
-  // Appearance State
-  const [themeMode, setThemeMode] = useState('light'); // 'light' | 'dark' | 'system'
-  const [fontScale, setFontScale] = useState('normal'); // 'compact' | 'normal' | 'comfortable'
+  // ─── Appearance State (Light / Dark only) ───
+  const [themeMode, setThemeMode] = useState(() => {
+    return localStorage.getItem('edumitra_theme') || 'light';
+  });
+  const [fontScale, setFontScale] = useState('normal');
   const [highContrast, setHighContrast] = useState(false);
 
-  // Privacy State
+  // ─── Privacy State ───
   const [recruiterVisibility, setRecruiterVisibility] = useState(true);
   const [telemetrySharing, setTelemetrySharing] = useState(true);
   const [aiTrainingOptOut, setAiTrainingOptOut] = useState(true);
 
-  // Show Toast
-  const triggerToast = (msg) => {
+  // ─── Toast Helper ───
+  const triggerToast = (msg, type = 'success') => {
     setToastMsg(msg);
-    setTimeout(() => {
-      setToastMsg(null);
-    }, 2800);
+    setToastType(type);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  // ─── Theme persistence ───
+  useEffect(() => {
+    localStorage.setItem('edumitra_theme', themeMode);
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [themeMode]);
+
+  // ─── Load profile from Neon DB ───
+  useEffect(() => {
+    const user = getStoredUser();
+    const userEmail = user.email;
+    if (!userEmail) {
+      setIsLoadingProfile(false);
+      return;
+    }
+
+    setIsLoadingProfile(true);
+    getStudentProfile(userEmail)
+      .then((res) => {
+        if (res && res.data) {
+          const d = res.data;
+          setFullName(d.full_name || '');
+          setEmail(d.email || userEmail);
+          setRollNumber(d.roll_number || '');
+          setInstitution(d.institution || '');
+          setSecondaryEmail(d.personal_email || '');
+          setDegree(d.degree || '');
+          setBranch(d.branch || '');
+          setCurrentYear(d.current_year || 1);
+          setCurrentSemester(d.current_semester || 1);
+          setAcademicStanding(d.academic_standing || '');
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load profile for settings:', err);
+        // Fallback to localStorage
+        setFullName(user.fullName || user.full_name || '');
+        setEmail(user.email || '');
+        setRollNumber(user.rollNumber || '');
+        setInstitution(user.institution || '');
+        setSecondaryEmail(user.personalEmail || '');
+      })
+      .finally(() => setIsLoadingProfile(false));
+  }, []);
+
+  // ─── Password strength computation ───
+  const passwordStrength = useMemo(() => {
+    if (!newPass) return { label: '', percent: 0, color: 'bg-surface-container' };
+    let score = 0;
+    if (newPass.length >= 8) score += 20;
+    if (newPass.length >= 12) score += 10;
+    if (/[a-z]/.test(newPass)) score += 15;
+    if (/[A-Z]/.test(newPass)) score += 15;
+    if (/[0-9]/.test(newPass)) score += 15;
+    if (/[^A-Za-z0-9]/.test(newPass)) score += 15;
+    if (newPass.length >= 16) score += 10;
+
+    if (score >= 80) return { label: `Strong (${score}%)`, percent: score, color: 'bg-tertiary' };
+    if (score >= 50) return { label: `Moderate (${score}%)`, percent: score, color: 'bg-secondary' };
+    return { label: `Weak (${score}%)`, percent: score, color: 'bg-error' };
+  }, [newPass]);
+
+  const passwordsMatch = useMemo(() => {
+    if (!confirmPass || !newPass) return null;
+    return newPass === confirmPass;
+  }, [newPass, confirmPass]);
+
+  // ─── Save Account Settings to DB ───
+  const handleSaveAccount = async () => {
+    setIsSavingAccount(true);
+    try {
+      const payload = {
+        full_name: fullName,
+        personal_email: secondaryEmail,
+      };
+      const res = await updateStudentProfile(email, payload);
+      if (res && res.status === 'success') {
+        // Sync localStorage
+        const stored = getStoredUser();
+        const updated = {
+          ...stored,
+          fullName: res.data.full_name || fullName,
+          personalEmail: res.data.personal_email || secondaryEmail,
+          institution: res.data.institution || institution,
+          rollNumber: res.data.roll_number || rollNumber,
+        };
+        localStorage.setItem('edumitra_user', JSON.stringify(updated));
+        triggerToast('Account settings saved to database.');
+      }
+    } catch (err) {
+      triggerToast(err.message || 'Failed to save account settings.', 'error');
+    } finally {
+      setIsSavingAccount(false);
+    }
+  };
+
+  // ─── Change Password via backend ───
+  const handleChangePassword = async () => {
+    setPasswordError('');
+
+    if (!currentPass) {
+      setPasswordError('Please enter your current password.');
+      return;
+    }
+    if (!newPass) {
+      setPasswordError('Please enter a new password.');
+      return;
+    }
+    if (!confirmPass) {
+      setPasswordError('Please confirm your new password.');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      const res = await changePassword({
+        email: email,
+        current_password: currentPass,
+        new_password: newPass,
+        confirm_password: confirmPass,
+      });
+      if (res && res.status === 'success') {
+        triggerToast(res.message || 'Password updated successfully.');
+        setCurrentPass('');
+        setNewPass('');
+        setConfirmPass('');
+      }
+    } catch (err) {
+      const errorMsg = err.message || 'Password update failed.';
+      const fieldErrors = err.errors || {};
+      if (fieldErrors.new_password) {
+        setPasswordError(Array.isArray(fieldErrors.new_password) ? fieldErrors.new_password.join(' ') : fieldErrors.new_password);
+      } else if (fieldErrors.confirm_password) {
+        setPasswordError(fieldErrors.confirm_password);
+      } else {
+        setPasswordError(errorMsg);
+      }
+      triggerToast(errorMsg, 'error');
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const handleScrollTo = (tabId) => {
@@ -66,7 +227,7 @@ export default function SettingPage() {
   };
 
   const handleSavePreferences = () => {
-    triggerToast('Preferences updated and synchronized across devices.');
+    triggerToast('Preferences updated and synchronized.');
   };
 
   const handleResetDefaults = () => {
@@ -81,12 +242,41 @@ export default function SettingPage() {
     triggerToast('Values reset to institutional defaults.');
   };
 
+  // ─── Detect current browser/session info ───
+  const currentSessionInfo = useMemo(() => {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    let browser = 'Browser';
+    if (ua.includes('Edg/')) browser = 'Microsoft Edge';
+    else if (ua.includes('Chrome')) browser = 'Google Chrome';
+    else if (ua.includes('Firefox')) browser = 'Mozilla Firefox';
+    else if (ua.includes('Safari')) browser = 'Apple Safari';
+    else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'Opera';
+
+    let os = 'Desktop';
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Macintosh') || ua.includes('Mac OS')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('CrOS')) os = 'ChromeOS';
+
+    return {
+      label: `${os} • ${browser}`,
+      os,
+      browser,
+    };
+  }, []);
+
   return (
     <div className="w-full pb-16 px-space-md sm:px-space-lg lg:px-space-xl max-w-[1440px] mx-auto">
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-inverse-surface text-inverse-on-surface px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 transition-opacity duration-300">
-          <span className="material-symbols-outlined text-[20px] text-tertiary-fixed">check_circle</span>
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 transition-opacity duration-300 ${
+          toastType === 'error'
+            ? 'bg-error-container text-on-error-container'
+            : 'bg-inverse-surface text-inverse-on-surface'
+        }`}>
+          <span className="material-symbols-outlined text-[20px]">
+            {toastType === 'error' ? 'error' : 'check_circle'}
+          </span>
           <span className="font-label-lg text-label-lg font-medium">{toastMsg}</span>
         </div>
       )}
@@ -98,55 +288,53 @@ export default function SettingPage() {
             <span className="font-label-sm text-label-sm text-primary uppercase tracking-wider font-semibold">
               Workspace Management
             </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-outline-variant" />
-            <span className="font-label-sm text-label-sm text-on-surface-variant">Security &amp; Preferences</span>
           </div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface font-semibold tracking-tight">
-            Account &amp; Preferences
+          <h1 className="font-headline-lg text-headline-lg text-on-surface font-bold">
+            Settings &amp; Preferences
           </h1>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-            Manage your student profile credentials, learning notifications, visual themes, and academic privacy controls.
+          <p className="font-body-md text-body-md text-on-surface-variant mt-1 max-w-xl">
+            Configure account security, notification policies, workspace appearance, and privacy governance.
           </p>
         </div>
-        <div className="flex items-center gap-3 self-start md:self-auto">
+
+        <div className="flex items-center gap-3 shrink-0">
           <button
+            type="button"
             onClick={handleResetDefaults}
-            className="h-10 px-4 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg transition-colors flex items-center gap-2 cursor-pointer"
+            className="h-10 px-4 rounded-lg bg-surface-container-lowest text-on-surface hover:bg-surface-container-low font-label-lg text-label-lg transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-on-surface-variant">restart_alt</span>
-            <span>Reset to Defaults</span>
+            <span>Reset Defaults</span>
           </button>
           <button
+            type="button"
             onClick={handleSavePreferences}
-            className="h-10 px-5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+            className="h-10 px-5 rounded-lg bg-primary text-on-primary hover:bg-primary-container font-label-lg text-label-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">check</span>
+            <span className="material-symbols-outlined text-[18px]">save</span>
             <span>Save Preferences</span>
           </button>
         </div>
       </div>
 
-      {/* Main Grid: 3-Col Nav + 9-Col Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Sticky Nav Sidebar */}
+      {/* Layout Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Sidebar Nav */}
         <div className="lg:col-span-3">
-          <div className="bg-surface-container-lowest rounded-xl p-3 shadow-sm sticky top-20 flex flex-col gap-1">
-            <div className="px-3 py-2 text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">
-              Navigation
-            </div>
-
+          <div className="sticky top-24 bg-surface-container-lowest rounded-xl p-4 shadow-sm flex flex-col gap-1">
             {[
-              { id: 'account', label: 'Account Profile', icon: 'badge' },
-              { id: 'security', label: 'Security & Auth', icon: 'lock_reset' },
-              { id: 'notifications', label: 'Notifications', icon: 'notifications_active' },
-              { id: 'appearance', label: 'Workspace Theme', icon: 'palette' },
-              { id: 'privacy', label: 'FERPA & Privacy', icon: 'verified_user' },
-              { id: 'sessions', label: 'Sessions & Logout', icon: 'power_settings_new' },
+              { id: 'account', icon: 'person', label: 'Account Profile' },
+              { id: 'security', icon: 'shield', label: 'Security & Auth' },
+              { id: 'notifications', icon: 'notifications_active', label: 'Notifications' },
+              { id: 'appearance', icon: 'brush', label: 'Workspace Theme' },
+              { id: 'privacy', icon: 'policy', label: 'FERPA & Privacy' },
+              { id: 'sessions', icon: 'devices', label: 'Sessions & Logout' },
             ].map((tab) => {
               const isSelected = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => handleScrollTo(tab.id)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-label-lg text-label-lg transition-all text-left cursor-pointer ${
                     isSelected
@@ -170,7 +358,7 @@ export default function SettingPage() {
                 <span className="font-label-sm text-label-sm font-semibold">Institutional Status</span>
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-1.5 leading-relaxed">
-                Enrolled under NITK National Student Network node.
+                {institution ? `Enrolled under ${institution}.` : 'Enrolled Student.'}
               </p>
               <div className="mt-2 text-label-sm font-label-sm text-primary font-semibold flex items-center gap-1">
                 <span>Sync verified</span>
@@ -211,15 +399,24 @@ export default function SettingPage() {
                 </button>
               </div>
               <div className="flex-1 text-center sm:text-left">
-                <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">{fullName}</h3>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">Undergraduate Scholar • Roll ID #{storedUser.rollNumber || "2022CS0894"}</p>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+                  {fullName || 'Student'}
+                </h3>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  {degree ? `${degree} Student` : 'Undergraduate Scholar'}
+                  {rollNumber ? ` • Roll ID #${rollNumber}` : ''}
+                </p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
-                  <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">
-                    {storedUser.institution || "NIT Surathkal"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">
-                    Class of 2026
-                  </span>
+                  {institution && (
+                    <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">
+                      {institution}
+                    </span>
+                  )}
+                  {academicStanding && (
+                    <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">
+                      {academicStanding}
+                    </span>
+                  )}
                 </div>
               </div>
               <button className="px-3.5 py-2 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm hover:bg-surface-container transition-colors cursor-pointer">
@@ -247,17 +444,17 @@ export default function SettingPage() {
                   <label className="font-label-md text-label-md text-on-surface font-semibold">Student ID / Roll Number</label>
                   <span className="text-tertiary flex items-center gap-1 font-label-sm text-label-sm font-semibold">
                     <span className="material-symbols-outlined text-[14px]">lock</span>
-                    <span>Institutional Verified</span>
+                    <span>Verified</span>
                   </span>
                 </div>
                 <input
                   type="text"
                   disabled
-                  value="2022CS0894"
+                  value={rollNumber || '—'}
                   className="h-10 px-3.5 rounded-lg bg-surface-container text-on-surface-variant font-body-md text-body-md cursor-not-allowed font-mono"
                 />
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
-                  Locked by NITK Academic Registrar. Contact faculty admin to update.
+                  {rollNumber ? 'Locked by Academic Registrar.' : 'Not yet set. Update from My Profile page.'}
                 </span>
               </div>
 
@@ -272,7 +469,7 @@ export default function SettingPage() {
                 <input
                   type="email"
                   disabled
-                  value={storedUser.email || "student@university.edu"}
+                  value={email}
                   className="h-10 px-3.5 rounded-lg bg-surface-container text-on-surface-variant font-body-md text-body-md cursor-not-allowed"
                 />
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
@@ -286,6 +483,7 @@ export default function SettingPage() {
                   type="email"
                   value={secondaryEmail}
                   onChange={(e) => setSecondaryEmail(e.target.value)}
+                  placeholder="e.g. personal@gmail.com"
                   className="h-10 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
                 />
                 <span className="font-body-sm text-body-sm text-on-surface-variant">
@@ -298,7 +496,7 @@ export default function SettingPage() {
                 <input
                   type="text"
                   disabled
-                  value={storedUser.institution || "National Institute of Technology (NIT)"}
+                  value={institution || '—'}
                   className="h-10 px-3.5 rounded-lg bg-surface-container text-on-surface-variant font-body-md text-body-md cursor-not-allowed"
                 />
               </div>
@@ -307,11 +505,33 @@ export default function SettingPage() {
                 <label className="font-label-md text-label-md text-on-surface font-semibold">Academic Program &amp; Semester</label>
                 <input
                   type="text"
-                  value={academicProgram}
-                  onChange={(e) => setAcademicProgram(e.target.value)}
-                  className="h-10 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
+                  disabled
+                  value={
+                    degree && academicStanding
+                      ? `${degree} ${branch ? `• ${branch}` : ''} • ${academicStanding}`
+                      : degree || 'Not specified'
+                  }
+                  className="h-10 px-3.5 rounded-lg bg-surface-container text-on-surface-variant font-body-md text-body-md cursor-not-allowed"
                 />
+                <span className="font-body-sm text-body-sm text-on-surface-variant">
+                  Managed from your My Profile page. View-only here.
+                </span>
               </div>
+            </div>
+
+            {/* Save Account Button */}
+            <div className="mt-6 pt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveAccount}
+                disabled={isSavingAccount}
+                className="h-10 px-5 rounded-lg bg-primary text-on-primary hover:bg-primary-container font-label-lg text-label-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {isSavingAccount ? 'sync' : 'save'}
+                </span>
+                <span>{isSavingAccount ? 'Saving...' : 'Save Account Changes'}</span>
+              </button>
             </div>
           </section>
 
@@ -331,6 +551,17 @@ export default function SettingPage() {
               </span>
             </div>
 
+            {/* Password Error Alert */}
+            {passwordError && (
+              <div className="mb-4 p-3 rounded-lg bg-error-container text-on-error-container flex items-center gap-2 font-label-md text-label-md">
+                <span className="material-symbols-outlined text-[18px]">error</span>
+                <span>{passwordError}</span>
+                <button onClick={() => setPasswordError('')} className="ml-auto hover:opacity-80">
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="flex flex-col gap-1.5 md:col-span-2">
                 <label className="font-label-md text-label-md text-on-surface font-semibold">Current Password</label>
@@ -339,6 +570,7 @@ export default function SettingPage() {
                     type={showCurrentPass ? 'text' : 'password'}
                     value={currentPass}
                     onChange={(e) => setCurrentPass(e.target.value)}
+                    placeholder="Enter your current password"
                     className="w-full h-10 pl-3.5 pr-10 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
                   />
                   <button
@@ -355,36 +587,86 @@ export default function SettingPage() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="font-label-md text-label-md text-on-surface font-semibold">New Password</label>
-                <input
-                  type="password"
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  className="h-10 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
-                />
-                <div className="mt-2 flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-label-sm font-label-sm">
-                    <span className="text-on-surface-variant">Security Strength</span>
-                    <span className="text-tertiary font-semibold">Strong (94%)</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden flex">
-                    <div className="bg-tertiary w-11/12 h-full rounded-full" />
-                  </div>
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    value={newPass}
+                    onChange={(e) => setNewPass(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full h-10 pl-3.5 pr-10 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {showNewPass ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
                 </div>
+                {newPass && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-label-sm font-label-sm">
+                      <span className="text-on-surface-variant">Security Strength</span>
+                      <span className="font-semibold" style={{ color: passwordStrength.percent >= 80 ? '#00423c' : passwordStrength.percent >= 50 ? '#006398' : '#ba1a1a' }}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden flex">
+                      <div
+                        className={`${passwordStrength.color} h-full rounded-full transition-all duration-300`}
+                        style={{ width: `${passwordStrength.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="font-label-md text-label-md text-on-surface font-semibold">Confirm New Password</label>
-                <input
-                  type="password"
-                  value={confirmPass}
-                  onChange={(e) => setConfirmPass(e.target.value)}
-                  className="h-10 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
-                />
-                <span className="font-body-sm text-body-sm text-tertiary flex items-center gap-1 mt-2">
-                  <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                  <span>Passwords match perfectly</span>
-                </span>
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    value={confirmPass}
+                    onChange={(e) => setConfirmPass(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full h-10 pl-3.5 pr-10 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md shadow-sm focus:outline-none focus:bg-surface-container-low transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {showConfirmPass ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+                {passwordsMatch !== null && (
+                  <span className={`font-body-sm text-body-sm flex items-center gap-1 mt-2 ${passwordsMatch ? 'text-tertiary' : 'text-error'}`}>
+                    <span className="material-symbols-outlined text-[15px]">
+                      {passwordsMatch ? 'check_circle' : 'cancel'}
+                    </span>
+                    <span>{passwordsMatch ? 'Passwords match perfectly' : 'Passwords do not match'}</span>
+                  </span>
+                )}
               </div>
+            </div>
+
+            {/* Update Password Button */}
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                disabled={isSavingPassword || !currentPass || !newPass || !confirmPass}
+                className="h-10 px-5 rounded-lg bg-primary text-on-primary hover:bg-primary-container font-label-lg text-label-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {isSavingPassword ? 'sync' : 'lock_reset'}
+                </span>
+                <span>{isSavingPassword ? 'Updating...' : 'Update Password'}</span>
+              </button>
             </div>
 
             {/* 2FA Card */}
@@ -398,37 +680,19 @@ export default function SettingPage() {
                     Two-Factor Authentication (2FA)
                   </h4>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    University Authenticator app / SMS backup OTP
+                    Adds an extra verification step using authenticator app or SMS code.
                   </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-surface-container text-tertiary font-label-sm text-label-sm font-semibold">
-                      {twoFactorEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">
-                      Auto-prompted on unfamiliar IP addresses
-                    </span>
-                  </div>
                 </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer self-end sm:self-center">
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
                   checked={twoFactorEnabled}
                   onChange={(e) => setTwoFactorEnabled(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
+                <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
               </label>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => triggerToast('Password update initiated (Demo).')}
-                className="px-5 py-2.5 rounded-lg bg-primary text-on-primary font-label-lg text-label-lg hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
-              >
-                Update Password
-              </button>
             </div>
           </section>
 
@@ -436,13 +700,15 @@ export default function SettingPage() {
           <section className="bg-surface-container-lowest rounded-xl p-6 sm:p-8 shadow-sm" id="notifications-section">
             <div className="flex items-start justify-between pb-6">
               <div>
-                <h2 className="font-headline-md text-headline-md text-on-surface font-semibold">Notification Preferences</h2>
+                <h2 className="font-headline-md text-headline-md text-on-surface font-semibold">
+                  Notification Preferences
+                </h2>
                 <p className="font-body-md text-body-md text-on-surface-variant mt-0.5">
-                  Control pacing, frequency, and delivery of automated academic insights.
+                  Control what alerts you receive and how often they fire.
                 </p>
               </div>
               <span className="p-2 rounded-lg bg-surface-container text-secondary">
-                <span className="material-symbols-outlined text-[20px]">ring_volume</span>
+                <span className="material-symbols-outlined text-[20px]">notifications_active</span>
               </span>
             </div>
 
@@ -464,12 +730,7 @@ export default function SettingPage() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={dailyDigest}
-                    onChange={(e) => setDailyDigest(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={dailyDigest} onChange={(e) => setDailyDigest(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -493,12 +754,7 @@ export default function SettingPage() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={bottleneckAlerts}
-                    onChange={(e) => setBottleneckAlerts(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={bottleneckAlerts} onChange={(e) => setBottleneckAlerts(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -514,7 +770,7 @@ export default function SettingPage() {
                       Exam &amp; Midterm Countdown Reminders
                     </h4>
                     <p className="font-body-sm text-body-sm text-on-surface-variant">
-                      Automated syllabus pacing checkpoints mapped to official NITK academic calendar.
+                      Automated syllabus pacing checkpoints mapped to official academic calendar.
                     </p>
                     <span className="font-label-sm text-label-sm text-primary font-semibold mt-1 inline-block">
                       Cadence: 14 &amp; 7 days prior
@@ -522,12 +778,7 @@ export default function SettingPage() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={examCountdown}
-                    onChange={(e) => setExamCountdown(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={examCountdown} onChange={(e) => setExamCountdown(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -551,12 +802,7 @@ export default function SettingPage() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={careerAlerts}
-                    onChange={(e) => setCareerAlerts(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={careerAlerts} onChange={(e) => setCareerAlerts(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -580,19 +826,14 @@ export default function SettingPage() {
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={streakPush}
-                    onChange={(e) => setStreakPush(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={streakPush} onChange={(e) => setStreakPush(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
             </div>
           </section>
 
-          {/* SECTION 4: THEME & WORKSPACE APPEARANCE */}
+          {/* SECTION 4: THEME & WORKSPACE APPEARANCE (Light / Dark only) */}
           <section className="bg-surface-container-lowest rounded-xl p-6 sm:p-8 shadow-sm" id="appearance-section">
             <div className="flex items-start justify-between pb-6">
               <div>
@@ -608,12 +849,12 @@ export default function SettingPage() {
               </span>
             </div>
 
-            {/* Color Theme Preview Cards */}
+            {/* Color Theme Preview Cards — Light & Dark only */}
             <div className="mb-6">
               <label className="font-label-md text-label-md text-on-surface font-semibold mb-3 block">
                 Color Theme Canvas
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Light */}
                 <label
                   onClick={() => setThemeMode('light')}
@@ -687,43 +928,6 @@ export default function SettingPage() {
                     High-contrast slate &amp; deep navy
                   </span>
                 </label>
-
-                {/* System */}
-                <label
-                  onClick={() => setThemeMode('system')}
-                  className={`cursor-pointer relative flex flex-col p-4 rounded-xl transition-all border ${
-                    themeMode === 'system'
-                      ? 'bg-surface-container border-primary shadow-sm'
-                      : 'bg-surface-container-low border-transparent hover:bg-surface-container'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-label-lg text-label-lg text-on-surface font-semibold flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[18px]">devices</span>
-                      <span>System Default</span>
-                    </span>
-                    <input
-                      type="radio"
-                      name="theme"
-                      checked={themeMode === 'system'}
-                      onChange={() => setThemeMode('system')}
-                      className="w-4 h-4 accent-primary"
-                    />
-                  </div>
-                  <div className="h-20 rounded-lg overflow-hidden flex shadow-xs border border-outline-variant/30">
-                    <div className="w-1/2 bg-white p-2 flex flex-col justify-between">
-                      <span className="w-2 h-2 rounded-full bg-indigo-600" />
-                      <span className="w-full h-1 bg-slate-200 rounded" />
-                    </div>
-                    <div className="w-1/2 bg-slate-900 p-2 flex flex-col justify-between">
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 self-end" />
-                      <span className="w-full h-1 bg-slate-700 rounded" />
-                    </div>
-                  </div>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-                    Auto-syncs with host OS configuration
-                  </span>
-                </label>
               </div>
             </div>
 
@@ -758,12 +962,7 @@ export default function SettingPage() {
                   <p className="font-body-sm text-body-sm text-on-surface-variant">Enhance token contrast for formula visibility.</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={highContrast}
-                    onChange={(e) => setHighContrast(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={highContrast} onChange={(e) => setHighContrast(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -800,12 +999,7 @@ export default function SettingPage() {
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={recruiterVisibility}
-                    onChange={(e) => setRecruiterVisibility(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={recruiterVisibility} onChange={(e) => setRecruiterVisibility(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -816,19 +1010,14 @@ export default function SettingPage() {
                     Academic Performance Telemetry Sharing
                   </h4>
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Share cumulative semester GPA and validated coding benchmarks with the NITK Career Cell.
+                    Share cumulative semester GPA and validated coding benchmarks with the Career Cell.
                   </p>
                   <span className="font-label-sm text-label-sm text-tertiary font-semibold mt-1 inline-block">
                     Compliance: FERPA &amp; Institute Policy Standard
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={telemetrySharing}
-                    onChange={(e) => setTelemetrySharing(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={telemetrySharing} onChange={(e) => setTelemetrySharing(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -844,12 +1033,7 @@ export default function SettingPage() {
                   </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={aiTrainingOptOut}
-                    onChange={(e) => setAiTrainingOptOut(e.target.checked)}
-                    className="sr-only peer"
-                  />
+                  <input type="checkbox" checked={aiTrainingOptOut} onChange={(e) => setAiTrainingOptOut(e.target.checked)} className="sr-only peer" />
                   <div className="w-11 h-6 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-container-lowest after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                 </label>
               </div>
@@ -875,7 +1059,7 @@ export default function SettingPage() {
             </div>
           </section>
 
-          {/* SECTION 6: ACTIVE SESSIONS & LOGOUT */}
+          {/* SECTION 6: ACTIVE SESSIONS & LOGOUT — Single current session only */}
           <section className="bg-surface-container-lowest rounded-xl p-6 sm:p-8 shadow-sm" id="sessions-section">
             <div className="flex items-start justify-between pb-6">
               <div>
@@ -883,7 +1067,7 @@ export default function SettingPage() {
                   Active Sessions &amp; Sign Out
                 </h2>
                 <p className="font-body-md text-body-md text-on-surface-variant mt-0.5">
-                  Review active authenticated devices and terminate unattended sessions.
+                  Your current authenticated browser session.
                 </p>
               </div>
               <span className="p-2 rounded-lg bg-surface-container text-error">
@@ -891,65 +1075,34 @@ export default function SettingPage() {
               </span>
             </div>
 
-            {/* Session 1: Current */}
-            <div className="p-4 rounded-xl bg-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            {/* Single Current Session Card */}
+            <div className="p-4 rounded-xl bg-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
               <div className="flex items-start gap-3">
                 <div className="p-2.5 rounded-lg bg-surface-container text-primary">
                   <span className="material-symbols-outlined text-[22px]">laptop_mac</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="font-label-lg text-label-lg text-on-surface font-semibold">macOS Chrome (Apple Silicon)</h4>
+                    <h4 className="font-label-lg text-label-lg text-on-surface font-semibold">
+                      {currentSessionInfo.label}
+                    </h4>
                     <span className="px-2 py-0.5 rounded-full bg-surface-container text-tertiary font-label-sm text-label-sm font-semibold">
                       Active Now
                     </span>
                   </div>
                   <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                    Bengaluru, Karnataka, India • IP 106.51.12.89
+                    Current desktop browser session
                   </p>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant">
-                    Last accessed via campus Eduroam tunnel
-                  </span>
                 </div>
               </div>
-              <span className="text-tertiary flex items-center gap-1 font-label-sm text-label-sm font-semibold self-start sm:self-center">
+              <span className="text-tertiary flex items-center gap-1.5 font-label-sm text-label-sm font-semibold self-start sm:self-center">
                 <span className="w-2 h-2 rounded-full bg-tertiary" />
                 <span>This Device</span>
               </span>
             </div>
 
-            {/* Session 2: Secondary */}
-            <div className="p-4 rounded-xl bg-surface-container-low flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-lg bg-surface-container text-on-surface-variant">
-                  <span className="material-symbols-outlined text-[22px]">phone_android</span>
-                </div>
-                <div>
-                  <h4 className="font-label-lg text-label-lg text-on-surface font-semibold">OnePlus 11 • Mobile App</h4>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                    Mangaluru, Karnataka, India • IP 49.37.214.10
-                  </p>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant">Last active 3 hours ago</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => triggerToast('Mobile session revoked.')}
-                className="px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm self-start sm:self-center cursor-pointer"
-              >
-                Revoke Session
-              </button>
-            </div>
-
-            {/* Logout Buttons */}
+            {/* Logout Button */}
             <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => triggerToast('All other sessions terminated.')}
-                className="w-full sm:w-auto h-10 px-4 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg transition-colors cursor-pointer"
-              >
-                Log Out of All Devices
-              </button>
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
@@ -973,7 +1126,7 @@ export default function SettingPage() {
             <div>
               <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">Sign Out from EduMitra AI?</h3>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                You will be required to re-authenticate via your student single sign-on credentials to resume your adaptive study sessions.
+                You will be required to re-authenticate via your student credentials to resume your adaptive study sessions.
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 mt-2">
@@ -989,6 +1142,7 @@ export default function SettingPage() {
                 onClick={() => {
                   setShowLogoutModal(false);
                   localStorage.removeItem('edumitra_user');
+                  localStorage.removeItem('edumitra_theme');
                   window.location.href = '/login';
                 }}
                 className="h-10 px-4 rounded-lg bg-error hover:bg-red-700 text-on-error font-label-lg text-label-lg transition-colors shadow-sm cursor-pointer"

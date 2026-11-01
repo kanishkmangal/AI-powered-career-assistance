@@ -1,3 +1,6 @@
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
@@ -10,6 +13,7 @@ from .serializers import (
     StudentProfileSerializer,
     StudentProfileDetailSerializer,
     StudentProfileUpdateSerializer,
+    ChangePasswordSerializer,
 )
 
 @api_view(['GET'])
@@ -182,4 +186,64 @@ class StudentProfileView(APIView):
 
     def put(self, request, *args, **kwargs):
         return self.patch(request, *args, **kwargs)
+
+
+class ChangePasswordView(APIView):
+    """
+    POST /api/auth/change-password/
+    Verifies current password and securely updates to new password.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'status': 'error',
+                'message': 'Password validation failed.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        email = request.data.get('email')
+        if not email and request.user.is_authenticated:
+            user = request.user
+        elif email:
+            user = User.objects.filter(email__iexact=str(email).strip().lower()).first()
+        else:
+            return Response({
+                'status': 'error',
+                'message': 'Email is required to identify user account.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user:
+            return Response({
+                'status': 'error',
+                'message': 'Student account not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        current_password = serializer.validated_data['current_password']
+        if not user.check_password(current_password):
+            return Response({
+                'status': 'error',
+                'message': 'Current password does not match our records.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        new_password = serializer.validated_data['new_password']
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as exc:
+            return Response({
+                'status': 'error',
+                'message': 'Password does not meet institutional security requirements.',
+                'errors': {'new_password': list(exc.messages)}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response({
+            'status': 'success',
+            'message': 'Password updated successfully. Please use your new password next time you sign in.'
+        }, status=status.HTTP_200_OK)
+
 

@@ -61,5 +61,6 @@ export const registerStudent = (payload) => apiClient.post('/auth/register/', pa
 export const loginStudent = (payload) => apiClient.post('/auth/login/', payload);
 export const getStudentProfile = (email) => apiClient.get(`/auth/profile/?email=${encodeURIComponent(email)}`);
 export const updateStudentProfile = (email, payload) => apiClient.patch(`/auth/profile/?email=${encodeURIComponent(email)}`, payload);
+export const changePassword = (payload) => apiClient.post('/auth/change-password/', payload);
 
 export default apiClient;
