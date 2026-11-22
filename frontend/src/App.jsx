@@ -16,6 +16,7 @@ import MyProfilePage from './pages/MyProfile';
 import NotificationPage from './pages/Notification';
 import SettingPage from './pages/Setting';
 import AIAssistancePage from './pages/AIAssistance';
+import ResumeBuilderPage from './pages/ResumeBuilder';
 
 /**
  * EduMitra AI - Root Application Component
@@ -42,6 +43,8 @@ function App() {
             <Route path="/settings" element={<SettingPage />} />
             <Route path="/ai-assistance" element={<AIAssistancePage />} />
             <Route path="/ai-study-assistant" element={<Navigate to="/ai-assistance" replace />} />
+            <Route path="/resume-builder" element={<ResumeBuilderPage />} />
+            <Route path="/resume" element={<Navigate to="/resume-builder" replace />} />
           </Route>
         </Route>
 

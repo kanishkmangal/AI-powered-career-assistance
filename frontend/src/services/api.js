@@ -11,9 +11,10 @@ export const apiClient = {
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const token = localStorage.getItem('edumitra_auth_token');
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
     const headers = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     };
@@ -111,5 +112,25 @@ export const generatePracticeMCQs = (sessionId, email) => {
   const q = email ? `?email=${encodeURIComponent(email)}` : '';
   return apiClient.post(`/academics/ai/sessions/${sessionId}/generate-mcqs/${q}`);
 };
+
+// Resume Builder & Career API endpoints
+export const uploadResume = (formData, email) => {
+  const q = email ? `?email=${encodeURIComponent(email)}` : '';
+  return apiClient.request(`/career/resumes/upload/${q}`, {
+    method: 'POST',
+    body: formData,
+  });
+};
+
+export const getLatestResume = (email) => {
+  const q = email ? `?email=${encodeURIComponent(email)}` : '';
+  return apiClient.get(`/career/resumes/latest/${q}`);
+};
+
+export const deleteResume = (resumeId, email) => {
+  const q = email ? `?email=${encodeURIComponent(email)}` : '';
+  return apiClient.delete(`/career/resumes/${resumeId}/${q}`);
+};
+
 
 export default apiClient;

@@ -18,6 +18,7 @@ const DashboardLayout = () => {
     if (path === '/notifications' && location.pathname === '/notifications') return true;
     if (path === '/settings' && location.pathname === '/settings') return true;
     if ((path === '/ai-assistance' || path === '/ai-study-assistant') && (location.pathname === '/ai-assistance' || location.pathname === '/ai-study-assistant')) return true;
+    if ((path === '/resume-builder' || path === '/resume') && (location.pathname === '/resume-builder' || location.pathname === '/resume')) return true;
     return location.pathname === path;
   };
 
@@ -34,6 +35,7 @@ const DashboardLayout = () => {
     if (location.pathname.includes('notification')) return 'Notification Center';
     if (location.pathname.includes('setting')) return 'Account Settings';
     if (location.pathname.includes('ai-assistance') || location.pathname.includes('ai-study-assistant')) return 'AI Study Assistant';
+    if (location.pathname.includes('resume')) return 'Resume Builder & ATS Optimizer';
     return 'Workspace Hub';
   };
 
@@ -163,12 +165,12 @@ const DashboardLayout = () => {
                   </div>
                 </a>
 
-                <a href="#resume-builder" className={navLinkClass('/resume-builder')}>
+                <Link to="/resume-builder" className={navLinkClass('/resume-builder')} onClick={() => setMobileMenuOpen(false)}>
                   <div className="flex items-center gap-space-sm">
                     <span className="material-symbols-outlined text-[20px]">description</span>
                     <span className="font-body-md text-body-md">Resume Builder</span>
                   </div>
-                </a>
+                </Link>
               </nav>
             </div>
 
