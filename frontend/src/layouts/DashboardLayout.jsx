@@ -17,6 +17,7 @@ const DashboardLayout = () => {
     if ((path === '/my-profile' || path === '/profile') && (location.pathname === '/my-profile' || location.pathname === '/profile')) return true;
     if (path === '/notifications' && location.pathname === '/notifications') return true;
     if (path === '/settings' && location.pathname === '/settings') return true;
+    if ((path === '/ai-assistance' || path === '/ai-study-assistant') && (location.pathname === '/ai-assistance' || location.pathname === '/ai-study-assistant')) return true;
     return location.pathname === path;
   };
 
@@ -32,6 +33,7 @@ const DashboardLayout = () => {
     if (location.pathname.includes('profile')) return 'Student Profile';
     if (location.pathname.includes('notification')) return 'Notification Center';
     if (location.pathname.includes('setting')) return 'Account Settings';
+    if (location.pathname.includes('ai-assistance') || location.pathname.includes('ai-study-assistant')) return 'AI Study Assistant';
     return 'Workspace Hub';
   };
 
@@ -144,7 +146,7 @@ const DashboardLayout = () => {
                   </div>
                 </a>
 
-                <a href="#ai-study-assistant" className={navLinkClass('/ai-study-assistant')}>
+                <Link to="/ai-assistance" className={navLinkClass('/ai-assistance')} onClick={() => setMobileMenuOpen(false)}>
                   <div className="flex items-center gap-space-sm">
                     <span className="material-symbols-outlined text-[20px]">smart_toy</span>
                     <span className="font-body-md text-body-md">AI Assistant</span>
@@ -152,7 +154,7 @@ const DashboardLayout = () => {
                   <span className="px-space-xs py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm font-semibold">
                     AI
                   </span>
-                </a>
+                </Link>
 
                 <a href="#my-study-plans" className={navLinkClass('/my-study-plans')}>
                   <div className="flex items-center gap-space-sm">
@@ -256,13 +258,13 @@ const DashboardLayout = () => {
             </div>
 
             {/* Ask AI Mentor */}
-            <a
+            <Link
               className="hidden lg:flex items-center gap-space-xs px-space-sm py-1.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-md text-label-md font-semibold hover:bg-secondary-fixed-dim transition-colors"
-              href="#ai-study-assistant"
+              to="/ai-assistance"
             >
               <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
               <span>Ask AI Mentor</span>
-            </a>
+            </Link>
 
             {/* New Study Goal CTA */}
             <button className="hidden sm:flex items-center gap-space-xs px-space-md py-1.5 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md font-semibold hover:bg-primary transition-colors shadow-sm cursor-pointer">
