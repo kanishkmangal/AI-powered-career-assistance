@@ -35,6 +35,7 @@ const DashboardLayout = () => {
     if (location.pathname.includes('notification')) return 'Notification Center';
     if (location.pathname.includes('setting')) return 'Account Settings';
     if (location.pathname.includes('ai-assistance') || location.pathname.includes('ai-study-assistant')) return 'AI Study Assistant';
+    if (location.pathname.includes('resume-analysis') || location.pathname.includes('resume-report')) return 'ATS Resume Diagnostic Report';
     if (location.pathname.includes('resume')) return 'Resume Builder & ATS Optimizer';
     return 'Workspace Hub';
   };

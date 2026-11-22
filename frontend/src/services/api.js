@@ -132,5 +132,16 @@ export const deleteResume = (resumeId, email) => {
   return apiClient.delete(`/career/resumes/${resumeId}/${q}`);
 };
 
+export const getResumeAnalysis = (email) => {
+  const q = email ? `?email=${encodeURIComponent(email)}` : '';
+  return apiClient.get(`/career/resumes/analysis/${q}`);
+};
+
+export const applyResumeAnalysisAction = (payload, email) => {
+  const q = email ? `?email=${encodeURIComponent(email)}` : '';
+  return apiClient.post(`/career/resumes/analysis/apply/${q}`, payload);
+};
+
+
 
 export default apiClient;

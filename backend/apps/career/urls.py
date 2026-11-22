@@ -4,6 +4,8 @@ from .views import (
     ResumeUploadView,
     LatestResumeView,
     ResumeDeleteView,
+    ResumeAnalysisView,
+    ResumeAnalysisApplyView,
 )
 
 urlpatterns = [
@@ -12,4 +14,7 @@ urlpatterns = [
     path('resumes/upload/', ResumeUploadView.as_view(), name='career-resume-upload'),
     path('resumes/latest/', LatestResumeView.as_view(), name='career-resume-latest'),
     path('resumes/<int:resume_id>/', ResumeDeleteView.as_view(), name='career-resume-delete'),
+    # Resume ATS Analysis APIs (After Upload)
+    path('resumes/analysis/', ResumeAnalysisView.as_view(), name='career-resume-analysis'),
+    path('resumes/analysis/apply/', ResumeAnalysisApplyView.as_view(), name='career-resume-analysis-apply'),
 ]

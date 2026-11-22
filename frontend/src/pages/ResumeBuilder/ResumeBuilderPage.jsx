@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { uploadResume, getLatestResume, deleteResume } from '../../services/api';
 
 /**
@@ -1287,6 +1288,13 @@ const ResumeBuilderPage = () => {
               >
                 Dismiss
               </button>
+              <Link
+                to="/resume-analysis"
+                className="px-4 py-2.5 rounded-xl bg-surface-container text-primary font-label-md text-label-md hover:bg-surface-container-high transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">assessment</span>
+                <span>View Full ATS Report</span>
+              </Link>
               <button
                 onClick={() => {
                   handleAddKeyword('Kubernetes');
