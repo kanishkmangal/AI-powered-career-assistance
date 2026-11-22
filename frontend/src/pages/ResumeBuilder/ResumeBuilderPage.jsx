@@ -25,13 +25,9 @@ const ResumeBuilderPage = () => {
     'Aarav Sharma';
 
   // File upload state
-  const [activeFile, setActiveFile] = useState({
-    id: null,
-    name: 'Aarav_Sharma_Resume_v3.2_Draft.pdf',
-    sizeFormatted: '1.4 MB',
-    isDefaultShowcase: true,
-  });
-  const [uploadProgress, setUploadProgress] = useState(100);
+  const [activeFile, setActiveFile] = useState(null);  // null = no resume uploaded yet
+  const [resumeLoading, setResumeLoading] = useState(true); // true while checking backend on mount
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [invalidFileError, setInvalidFileError] = useState(null);
@@ -103,11 +99,14 @@ const ResumeBuilderPage = () => {
   useEffect(() => {
     if (userEmail) {
       loadLatestResume();
+    } else {
+      setResumeLoading(false); // not logged in — no resume to load
     }
   }, [userEmail]);
 
   const loadLatestResume = async () => {
     try {
+      setResumeLoading(true);
       const res = await getLatestResume(userEmail);
       if (res.status === 'success' && res.data) {
         setActiveFile({
@@ -119,9 +118,15 @@ const ResumeBuilderPage = () => {
         if (res.data.target_role) {
           setTargetRole(res.data.target_role);
         }
+      } else {
+        // No resume in backend – keep null (empty upload state)
+        setActiveFile(null);
       }
     } catch (err) {
       console.error('Error loading latest resume:', err);
+      setActiveFile(null); // on error, start clean
+    } finally {
+      setResumeLoading(false);
     }
   };
 
@@ -156,7 +161,6 @@ const ResumeBuilderPage = () => {
     setInvalidFileError(null);
     setUploading(true);
     setUploadProgress(20);
-
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => {
         if (prev >= 90) {
@@ -387,10 +391,17 @@ const ResumeBuilderPage = () => {
               <span className="material-symbols-outlined text-[20px] text-primary">cloud_upload</span>
               <span>Upload Resume</span>
             </button>
+            {/* Analyze with AI ATS — disabled until a real resume is uploaded */}
             <button
-              onClick={() => setIsAtsModalOpen(true)}
-              className="flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary transition-all shadow-md cursor-pointer"
+              onClick={() => activeFile && !activeFile.isDefaultShowcase ? setIsAtsModalOpen(true) : null}
+              disabled={!activeFile || activeFile.isDefaultShowcase || uploading}
+              className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-label-lg text-label-lg transition-all shadow-md ${
+                activeFile && !activeFile.isDefaultShowcase && !uploading
+                  ? 'bg-primary-container text-on-primary hover:bg-primary cursor-pointer'
+                  : 'bg-surface-container-high text-outline cursor-not-allowed opacity-50'
+              }`}
               id="analyze-ats-btn"
+              title={!activeFile || activeFile.isDefaultShowcase ? 'Upload a resume first to enable ATS analysis' : 'Analyze with AI ATS'}
             >
               <span className="material-symbols-outlined text-[20px]">insights</span>
               <span>Analyze with AI ATS</span>
@@ -451,7 +462,15 @@ const ResumeBuilderPage = () => {
             </div>
 
             {/* Active Upload State Card */}
-            {activeFile && (
+            {resumeLoading ? (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-container animate-pulse">
+                <div className="w-10 h-10 rounded-lg bg-surface-container-high shrink-0" />
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="h-3 w-48 rounded bg-surface-container-high" />
+                  <div className="h-2 w-32 rounded bg-surface-container-high" />
+                </div>
+              </div>
+            ) : activeFile ? (
               <div className="flex flex-col p-4 rounded-xl bg-surface-container gap-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -489,15 +508,15 @@ const ResumeBuilderPage = () => {
                   </div>
                 </div>
 
-                {/* Progress bar */}
+                {/* Progress bar — full when already uploaded, animated during upload */}
                 <div className="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-primary-container h-full rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
+                    style={{ width: uploading ? `${uploadProgress}%` : '100%' }}
                   ></div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Invalid File Alert State */}
             {invalidFileError && (
@@ -1182,10 +1201,17 @@ const ResumeBuilderPage = () => {
                 </span>
               </div>
             </div>
+            {/* ATS Readiness State / Scan Resume — disabled until a real resume is uploaded */}
             <button
-              onClick={() => setIsAtsModalOpen(true)}
-              className="px-4 py-2 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md hover:bg-primary transition-all shadow-sm whitespace-nowrap cursor-pointer"
+              onClick={() => activeFile && !activeFile.isDefaultShowcase ? setIsAtsModalOpen(true) : null}
+              disabled={!activeFile || activeFile.isDefaultShowcase || uploading}
+              className={`px-4 py-2 rounded-lg font-label-md text-label-md transition-all shadow-sm whitespace-nowrap ${
+                activeFile && !activeFile.isDefaultShowcase && !uploading
+                  ? 'bg-primary-container text-on-primary hover:bg-primary cursor-pointer'
+                  : 'bg-surface-container-high text-outline cursor-not-allowed opacity-50'
+              }`}
               id="floating-ats-trigger"
+              title={!activeFile || activeFile.isDefaultShowcase ? 'Upload a resume first to scan' : 'Scan Resume'}
             >
               Scan Resume
             </button>

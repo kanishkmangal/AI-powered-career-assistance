@@ -24,15 +24,13 @@ def _get_student_profile(request):
     """
     Extracts StudentProfile from authenticated user or email query/body parameter.
     Ensures students access their own data only.
+    Never falls back to arbitrary student records.
     """
     email = request.query_params.get('email') or request.data.get('email')
     if not email and request.user.is_authenticated:
         email = request.user.email
 
     if not email:
-        profile = StudentProfile.objects.first()
-        if profile:
-            return profile, None
         return None, 'Student email or authentication required.'
 
     profile = StudentProfile.objects.filter(email__iexact=str(email).strip().lower()).first()
@@ -170,9 +168,13 @@ class ResumeAnalysisView(APIView):
 
         resume = StudentResume.objects.filter(student=profile).order_by('-uploaded_at').first()
 
-        file_name = resume.file_name if resume else "Aarav_Sharma_Resume_v3.2_Draft.pdf"
-        target_role = resume.target_role if resume else "Cloud & Distributed Systems Engineer (L3/Associate)"
-        parsed_data = resume.parsed_data if resume else {}
+        # If no resume has been uploaded, return null — do NOT fabricate demo data
+        if not resume:
+            return Response({'status': 'success', 'data': None})
+
+        file_name = resume.file_name
+        target_role = resume.target_role
+        parsed_data = resume.parsed_data or {}
 
         analysis = {
             "file_name": file_name,
@@ -329,13 +331,9 @@ class ResumeAnalysisApplyView(APIView):
 
         resume = StudentResume.objects.filter(student=profile).order_by('-uploaded_at').first()
         if not resume:
-            resume = StudentResume.objects.create(
-                student=profile,
-                file_name="Aarav_Sharma_Resume_v3.2_Draft.pdf",
-                file_size=1468006,
-                file_type="application/pdf",
-                target_role="Cloud & Distributed Systems Engineer (L3/Associate)",
-                parsed_data={"parsed_status": "complete", "engine": "EduMitra Telemetry OCR v2.8", "target_match": 86}
+            return Response(
+                {'status': 'error', 'message': 'No resume found. Please upload a resume before applying suggestions.'},
+                status=status.HTTP_404_NOT_FOUND
             )
 
         parsed_data = resume.parsed_data or {}

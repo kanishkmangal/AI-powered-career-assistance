@@ -16,6 +16,7 @@ import MyProfilePage from './pages/MyProfile';
 import NotificationPage from './pages/Notification';
 import SettingPage from './pages/Setting';
 import AIAssistancePage from './pages/AIAssistance';
+import { StudyPlansPage } from './pages/StudyPlans';
 import ResumeBuilderPage from './pages/ResumeBuilder';
 import ResumeAnalysisPage from './pages/ResumeAnalysis';
 
@@ -45,6 +46,7 @@ function App() {
             <Route path="/ai-assistance" element={<AIAssistancePage />} />
             <Route path="/ai-study-assistant" element={<Navigate to="/ai-assistance" replace />} />
             <Route path="/resume-builder" element={<ResumeBuilderPage />} />
+            <Route path="/my-study-plans" element={<StudyPlansPage />} />
             <Route path="/resume" element={<Navigate to="/resume-builder" replace />} />
             <Route path="/resume-analysis" element={<ResumeAnalysisPage />} />
             <Route path="/resume-report" element={<Navigate to="/resume-analysis" replace />} />

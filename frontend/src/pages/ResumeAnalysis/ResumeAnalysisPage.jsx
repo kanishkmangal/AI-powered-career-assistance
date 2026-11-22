@@ -118,6 +118,43 @@ const ResumeAnalysisPage = () => {
     window.print();
   };
 
+  if (loading) {
+    return (
+      <div className="flex flex-col w-full pb-16 px-4 sm:px-8 pt-4">
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-on-surface-variant">
+          <span className="material-symbols-outlined text-[48px] animate-spin text-primary">refresh</span>
+          <span className="font-body-md text-body-md">Loading ATS Diagnostic Report…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // No resume uploaded — show a clear empty state instead of fabricated data
+  if (!analysisData) {
+    return (
+      <div className="flex flex-col w-full pb-16 px-4 sm:px-8 pt-4">
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-6 text-center">
+          <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center">
+            <span className="material-symbols-outlined text-[40px] text-outline">upload_file</span>
+          </div>
+          <div className="flex flex-col gap-2 max-w-md">
+            <h2 className="font-headline-md text-headline-md text-on-surface">No Resume Uploaded</h2>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              Upload your resume on the Resume Builder page first. Once uploaded, your ATS diagnostic report will appear here.
+            </p>
+          </div>
+          <Link
+            to="/resume-builder"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg hover:bg-primary transition-all shadow-md"
+          >
+            <span className="material-symbols-outlined text-[20px]">cloud_upload</span>
+            <span>Go to Resume Builder</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col w-full pb-16 px-4 sm:px-8 pt-4">
       {/* Toast Notification Banner */}

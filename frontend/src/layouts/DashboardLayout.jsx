@@ -37,6 +37,7 @@ const DashboardLayout = () => {
     if (location.pathname.includes('ai-assistance') || location.pathname.includes('ai-study-assistant')) return 'AI Study Assistant';
     if (location.pathname.includes('resume-analysis') || location.pathname.includes('resume-report')) return 'ATS Resume Diagnostic Report';
     if (location.pathname.includes('resume')) return 'Resume Builder & ATS Optimizer';
+    if (location.pathname.includes('my-study-plans')) return 'Study Plans';
     return 'Workspace Hub';
   };
 
@@ -159,12 +160,12 @@ const DashboardLayout = () => {
                   </span>
                 </Link>
 
-                <a href="#my-study-plans" className={navLinkClass('/my-study-plans')}>
+                <Link to="/my-study-plans" className={navLinkClass('/my-study-plans')} onClick={() => setMobileMenuOpen(false)}>
                   <div className="flex items-center gap-space-sm">
                     <span className="material-symbols-outlined text-[20px]">event_note</span>
                     <span className="font-body-md text-body-md">Study Plans</span>
                   </div>
-                </a>
+                </Link>
 
                 <Link to="/resume-builder" className={navLinkClass('/resume-builder')} onClick={() => setMobileMenuOpen(false)}>
                   <div className="flex items-center gap-space-sm">
