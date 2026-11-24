@@ -9,7 +9,7 @@ from django.conf.urls.static import static
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from apps.accounts.views import RegisterView, LoginView, MeView, StudentProfileView, ChangePasswordView
+from apps.accounts.views import (RegisterView, LoginView, MeView, StudentProfileView, ChangePasswordView, VerifyTokenView)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -51,6 +51,7 @@ urlpatterns = [
     # Canonical Auth endpoints
     path('api/auth/register/', RegisterView.as_view(), name='auth-register'),
     path('api/auth/login/', LoginView.as_view(), name='auth-login'),
+    path('api/auth/verify/', VerifyTokenView.as_view(), name='auth-verify'),
     path('api/auth/me/', MeView.as_view(), name='auth-me'),
     path('api/auth/profile/', StudentProfileView.as_view(), name='auth-profile'),
     path('api/auth/change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
