@@ -45,7 +45,7 @@ const DashboardLayout = () => {
 
   const storedUser = (() => {
     try {
-      return JSON.parse(localStorage.getItem('edumitra_user')) || {};
+      return JSON.parse(localStorage.getItem('edumitra_user') || sessionStorage.getItem('edumitra_user')) || {};
     } catch {
       return {};
     }

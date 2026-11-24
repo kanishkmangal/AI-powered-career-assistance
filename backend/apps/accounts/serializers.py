@@ -194,10 +194,13 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, write_only=True)
+    rememberMe = serializers.BooleanField(required=False, default=False)
+    remember_me = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
         email = attrs.get('email', '').strip().lower()
         password = attrs.get('password', '')
+        remember_me = attrs.get('rememberMe', False) or attrs.get('remember_me', False)
 
         # Look up by email case-insensitively
         user = User.objects.filter(email__iexact=email).first()
@@ -213,6 +216,7 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError({'detail': 'This account has been deactivated.'})
 
         attrs['user'] = auth_user
+        attrs['remember_me'] = remember_me
         return attrs
 
 

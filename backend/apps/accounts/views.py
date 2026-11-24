@@ -7,6 +7,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from .models import StudentProfile
+from .tokens import (
+    create_auth_token,
+    verify_auth_token,
+    REMEMBER_ME_DURATION_SECONDS,
+    STANDARD_DURATION_SECONDS,
+)
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
@@ -39,6 +45,7 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             profile = getattr(user, 'student_profile', None)
+            token, expires_at, duration_seconds = create_auth_token(user, remember_me=False)
             return Response(
                 {
                     'status': 'success',
@@ -49,6 +56,11 @@ class RegisterView(APIView):
                         'fullName': profile.full_name if profile else '',
                         'institution': profile.institution if profile else '',
                         'eduLevel': profile.education_level if profile else 'ug',
+                        'token': token,
+                        'tokenType': 'Bearer',
+                        'rememberMe': False,
+                        'expiresAt': expires_at.isoformat(),
+                        'expiresInSeconds': duration_seconds,
                         'createdAt': profile.created_at.isoformat() if profile else ''
                     }
                 },
@@ -67,7 +79,7 @@ class RegisterView(APIView):
 class LoginView(APIView):
     """
     POST /api/auth/login/
-    Authenticates a student by email and password.
+    Authenticates a student by email and password, supporting Remember Me (4-day expiration).
     """
     permission_classes = [AllowAny]
 
@@ -75,7 +87,18 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            remember_me = serializer.validated_data.get('remember_me', False)
             profile = getattr(user, 'student_profile', None)
+
+            token, expires_at, duration_seconds = create_auth_token(user, remember_me=remember_me)
+
+            # Enforce session expiration if Django sessions are in use
+            if hasattr(request, 'session'):
+                if remember_me:
+                    request.session.set_expiry(REMEMBER_ME_DURATION_SECONDS)
+                else:
+                    request.session.set_expiry(0)  # expires on browser close
+
             return Response(
                 {
                     'status': 'success',
@@ -85,7 +108,12 @@ class LoginView(APIView):
                         'email': user.email,
                         'fullName': profile.full_name if profile else user.first_name,
                         'institution': profile.institution if profile else '',
-                        'eduLevel': profile.education_level if profile else 'ug'
+                        'eduLevel': profile.education_level if profile else 'ug',
+                        'token': token,
+                        'tokenType': 'Bearer',
+                        'rememberMe': remember_me,
+                        'expiresAt': expires_at.isoformat(),
+                        'expiresInSeconds': duration_seconds
                     }
                 },
                 status=status.HTTP_200_OK
@@ -98,6 +126,77 @@ class LoginView(APIView):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+class VerifyTokenView(APIView):
+    """
+    POST /api/auth/verify/
+    Verifies that the provided token is cryptographically valid and not expired.
+    Enforces the 4-day (96 hour) limit for Remember Me tokens and 24h for normal tokens.
+    Returns HTTP 401 if expired or invalid.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        token = request.data.get('token')
+        if not token:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:].strip()
+            elif auth_header.startswith('Token '):
+                token = auth_header[6:].strip()
+
+        if not token:
+            return Response(
+                {'status': 'error', 'message': 'No authentication token provided.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        payload, err = verify_auth_token(token)
+        if err:
+            return Response(
+                {'status': 'error', 'message': err},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        user_id = payload.get('user_id')
+        user = User.objects.filter(id=user_id, is_active=True).first()
+        if not user:
+            return Response(
+                {'status': 'error', 'message': 'User account does not exist or has been deactivated.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        profile = StudentProfile.objects.filter(user=user).first()
+        return Response({
+            'status': 'success',
+            'message': 'Token is active and valid.',
+            'data': {
+                'userId': user.id,
+                'email': user.email,
+                'fullName': profile.full_name if profile else (f"{user.first_name} {user.last_name}".strip() or user.username),
+                'institution': profile.institution if profile else '',
+                'eduLevel': profile.education_level if profile else 'ug',
+                'rememberMe': payload.get('remember_me', False),
+                'expiresAt': payload.get('exp'),
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class LogoutView(APIView):
+    """
+    POST /api/auth/logout/
+    Terminates the user session on the backend.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        if hasattr(request, 'session'):
+            request.session.flush()
+        return Response({
+            'status': 'success',
+            'message': 'Successfully logged out.'
+        }, status=status.HTTP_200_OK)
 
 
 class MeView(APIView):

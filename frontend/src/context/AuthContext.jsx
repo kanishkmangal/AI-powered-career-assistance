@@ -1,4 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  getStoredUser,
+  getAuthToken,
+  setAuthData,
+  clearAuthData,
+  logoutStudent,
+  checkAuthValidity,
+} from '../services/api';
 
 /**
  * EduMitra AI - Authentication Context Architecture
@@ -7,30 +15,48 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem('edumitra_auth_token'));
+  const [user, setUser] = useState(() => getStoredUser());
+  const [token, setToken] = useState(() => getAuthToken());
   const [loading, setLoading] = useState(false);
 
-  const login = (userData, authToken) => {
+  useEffect(() => {
+    if (!checkAuthValidity()) {
+      setUser(null);
+      setToken(null);
+    }
+  }, []);
+
+  const login = (userData, authToken, rememberMe = false, expiresAt = null) => {
     setUser(userData);
     setToken(authToken);
-    if (authToken) {
-      localStorage.setItem('edumitra_auth_token', authToken);
-    }
+    setAuthData({
+      user: userData,
+      token: authToken,
+      rememberMe,
+      expiresAt,
+    });
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('edumitra_auth_token');
+    await logoutStudent();
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: Boolean(token), loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isAuthenticated: Boolean(token && user && checkAuthValidity()),
+        loading,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuthContext = () => useContext(AuthContext);
-

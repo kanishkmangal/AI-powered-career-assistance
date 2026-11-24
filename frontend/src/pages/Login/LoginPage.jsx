@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginStudent } from '../../services/api';
+import { loginStudent, setAuthData } from '../../services/api';
 
 const LOGO_SRC = "/assets/LOGO.jpg";
 
@@ -27,11 +27,18 @@ const LoginPage = () => {
     try {
       const response = await loginStudent({
         email: email.trim().toLowerCase(),
-        password
+        password,
+        rememberMe
       });
 
       if (response && response.status === 'success') {
-        localStorage.setItem('edumitra_user', JSON.stringify(response.data));
+        const { token, expiresAt, ...userData } = response.data;
+        setAuthData({
+          user: response.data,
+          token: token,
+          rememberMe: rememberMe,
+          expiresAt: expiresAt
+        });
         navigate('/overview');
       }
     } catch (err) {

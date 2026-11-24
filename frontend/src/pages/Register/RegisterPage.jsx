@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo } from '../../components';
-import { registerStudent } from '../../services/api';
+import { registerStudent, setAuthData } from '../../services/api';
 
 /**
  * Register Page Component - EduMitra AI
@@ -151,7 +151,13 @@ const RegisterPage = () => {
       });
 
       if (response && response.status === 'success') {
-        localStorage.setItem('edumitra_user', JSON.stringify(response.data));
+        const { token, expiresAt, ...userData } = response.data;
+        setAuthData({
+          user: response.data,
+          token: token,
+          rememberMe: false,
+          expiresAt: expiresAt
+        });
         navigate('/overview');
       }
     } catch (err) {

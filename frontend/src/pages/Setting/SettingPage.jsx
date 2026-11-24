@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getStudentProfile, updateStudentProfile, changePassword } from '../../services/api';
+import { getStudentProfile, updateStudentProfile, changePassword, logoutStudent } from '../../services/api';
 
 export default function SettingPage() {
   const [activeTab, setActiveTab] = useState('account');
@@ -12,7 +12,7 @@ export default function SettingPage() {
 
   const getStoredUser = () => {
     try {
-      return JSON.parse(localStorage.getItem('edumitra_user')) || {};
+      return JSON.parse(localStorage.getItem('edumitra_user') || sessionStorage.getItem('edumitra_user')) || {};
     } catch {
       return {};
     }
@@ -1139,9 +1139,9 @@ export default function SettingPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setShowLogoutModal(false);
-                  localStorage.removeItem('edumitra_user');
+                  await logoutStudent();
                   localStorage.removeItem('edumitra_theme');
                   window.location.href = '/login';
                 }}
